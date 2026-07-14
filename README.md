@@ -60,3 +60,16 @@ src/
 - ดูประวัติรายการ กรองตามวันที่ พร้อมสรุปยอดรายวัน
 - ส่งออกเป็น CSV (UTF-8 with BOM รองรับภาษาไทยใน Excel)
 - ซิงค์ข้อมูลไป Google Sheets แบบไม่ซ้ำ ทั้งแบบกดเองและอัตโนมัติเวลา 22:00
+
+## Deploy ขึ้น Vercel
+
+โปรเจกต์นี้ deploy ผ่าน Deploy Hook (ไม่ได้ใช้ Vercel Git auto-deploy เพราะบัญชี
+GitHub และ Vercel คนละบัญชีกัน) หลังแก้โค้ดเสร็จ ให้รัน:
+
+```powershell
+.\deploy.ps1 "commit message"
+```
+
+สคริปต์นี้จะ commit + push ขึ้น GitHub แล้วยิง POST ไปที่ Vercel Deploy Hook
+ให้เริ่ม build ใหม่โดยอัตโนมัติ ตรวจสอบผลลัพธ์ที่หน้า Deployments ใน Vercel
+Dashboard
