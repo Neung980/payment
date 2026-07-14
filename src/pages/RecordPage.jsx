@@ -90,6 +90,7 @@ const styles = {
     cursor: 'pointer',
   }),
   lineCashLabel: { fontSize: 12, fontWeight: 600, color: colors.muted, padding: '7px 4px' },
+  invalidHint: { fontSize: 12, color: colors.expense, marginTop: 10, textAlign: 'center' },
   removeBtn: {
     border: 'none',
     background: 'none',
@@ -224,13 +225,22 @@ export default function RecordPage() {
   const [showQrModal, setShowQrModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [focusLineId, setFocusLineId] = useState(null);
 
   const makeLineId = useRef(makeLineIdFactory()).current;
+  const amountInputRefs = useRef({});
 
   useEffect(() => {
     const unsubscribe = subscribeItems(setItems);
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!focusLineId) return;
+    const el = amountInputRefs.current[focusLineId];
+    if (el) el.focus();
+    setFocusLineId(null);
+  }, [focusLineId]);
 
   useEffect(() => {
     if (!toast || toast.type === 'error') return;
@@ -252,6 +262,11 @@ export default function RecordPage() {
     return { count: cart.length, cashTotal, qrTotal, grandTotal: cashTotal + qrTotal };
   }, [cart]);
 
+  const hasInvalidAmount = useMemo(
+    () => cart.some((l) => !l.amount || Number(l.amount) <= 0),
+    [cart]
+  );
+
   const qrLines = useMemo(() => cart.filter((l) => l.paymentMethod === 'qr'), [cart]);
   const qrTotalAmount = useMemo(
     () => qrLines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0),
@@ -268,15 +283,22 @@ export default function RecordPage() {
     }
   }, [qrTotalAmount]);
 
+  // amount เป็น null/undefined เมื่อรายการด่วนไม่มีจำนวนเงินเริ่มต้น -> แถวในตะกร้าจะเริ่มว่าง
   function addLineToCart({ name, type, amount }) {
+    const lineId = makeLineId();
+    const hasAmount = amount !== null && amount !== undefined && amount !== '';
     setCart((prev) => [
       ...prev,
-      { lineId: makeLineId(), name, type, amount: String(amount), paymentMethod: 'cash' },
+      { lineId, name, type, amount: hasAmount ? String(amount) : '', paymentMethod: 'cash' },
     ]);
+    return lineId;
   }
 
   function handleSelectTemplate(item) {
-    addLineToCart({ name: item.name, type: item.type, amount: item.amount });
+    const lineId = addLineToCart({ name: item.name, type: item.type, amount: item.amount });
+    if (item.amount === null || item.amount === undefined) {
+      setFocusLineId(lineId);
+    }
   }
 
   function updateLineAmount(lineId, value) {
@@ -289,6 +311,7 @@ export default function RecordPage() {
 
   function removeLine(lineId) {
     setCart((prev) => prev.filter((l) => l.lineId !== lineId));
+    delete amountInputRefs.current[lineId];
   }
 
   function openNewItemForm() {
@@ -303,15 +326,22 @@ export default function RecordPage() {
       setToast({ type: 'error', message: 'กรุณากรอกชื่อรายการ' });
       return;
     }
-    if (!newItemAmount || Number(newItemAmount) <= 0) {
-      setToast({ type: 'error', message: 'กรุณากรอกจำนวนเงินให้ถูกต้อง' });
-      return;
+    // จำนวนเงินไม่บังคับ — ตรวจสอบเฉพาะตอนกรอกค่าที่ไม่ใช่ตัวเลขหรือติดลบ
+    let amount = null;
+    if (newItemAmount.trim()) {
+      const num = Number(newItemAmount);
+      if (Number.isNaN(num) || num < 0) {
+        setToast({ type: 'error', message: 'จำนวนเงินไม่ถูกต้อง' });
+        return;
+      }
+      amount = num;
     }
     setCreatingItem(true);
     try {
-      const data = { name: newItemName.trim(), amount: Number(newItemAmount), type: newItemType };
+      const data = { name: newItemName.trim(), amount, type: newItemType };
       await addItem(data);
-      addLineToCart(data);
+      const lineId = addLineToCart(data);
+      if (amount === null) setFocusLineId(lineId);
       setShowNewItemForm(false);
     } catch (err) {
       setToast({ type: 'error', message: 'สร้างรายการไม่สำเร็จ: ' + err.message });
@@ -394,7 +424,9 @@ export default function RecordPage() {
           {list.map((item) => (
             <button key={item.id} style={styles.quickCard(kind)} onClick={() => handleSelectTemplate(item)}>
               <div style={styles.quickName}>{item.name}</div>
-              <div style={styles.quickAmount}>{formatAmount(item.amount)} บาท</div>
+              <div style={styles.quickAmount}>
+                {item.amount != null ? `${formatAmount(item.amount)} บาท` : '— บาท'}
+              </div>
             </button>
           ))}
         </div>
@@ -440,10 +472,14 @@ export default function RecordPage() {
                   <span style={styles.typeTag(line.type)}>{line.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</span>
                 </div>
                 <input
+                  ref={(el) => {
+                    amountInputRefs.current[line.lineId] = el;
+                  }}
                   style={styles.lineAmountInput}
                   type="number"
                   inputMode="decimal"
                   value={line.amount}
+                  placeholder="ใส่จำนวนเงิน"
                   onChange={(e) => updateLineAmount(line.lineId, e.target.value)}
                 />
                 {line.type === 'income' ? (
@@ -489,9 +525,12 @@ export default function RecordPage() {
               </div>
             </div>
 
-            <button style={styles.saveBtn} disabled={saving} onClick={handleSaveAll}>
+            <button style={styles.saveBtn} disabled={saving || hasInvalidAmount} onClick={handleSaveAll}>
               บันทึกทั้งหมด ({cartSummary.count} รายการ)
             </button>
+            {hasInvalidAmount && (
+              <div style={styles.invalidHint}>กรุณาใส่จำนวนเงินให้ครบทุกรายการก่อนบันทึก</div>
+            )}
           </>
         )}
       </div>
@@ -526,13 +565,14 @@ export default function RecordPage() {
           />
         </div>
         <div style={styles.field}>
-          <label style={styles.label}>จำนวนเงินเริ่มต้น (บาท)</label>
+          <label style={styles.label}>จำนวนเงินเริ่มต้น (บาท) (ไม่บังคับ)</label>
           <input
             style={styles.input}
             type="number"
             inputMode="decimal"
             value={newItemAmount}
             onChange={(e) => setNewItemAmount(e.target.value)}
+            placeholder="เว้นว่างได้ถ้าไม่มีจำนวนเงินตายตัว"
           />
         </div>
         <div style={styles.modalActions}>

@@ -127,7 +127,7 @@ export default function ItemsPage() {
   function openEditForm(item) {
     setEditingItem(item);
     setFormName(item.name);
-    setFormAmount(String(item.amount));
+    setFormAmount(item.amount != null ? String(item.amount) : '');
     setFormType(item.type);
     setFormError('');
     setShowForm(true);
@@ -138,11 +138,17 @@ export default function ItemsPage() {
       setFormError('กรุณากรอกชื่อรายการ');
       return;
     }
-    if (!formAmount || Number(formAmount) <= 0) {
-      setFormError('กรุณากรอกจำนวนเงินให้ถูกต้อง');
-      return;
+    // จำนวนเงินไม่บังคับ — เว้นว่างได้ ตรวจสอบเฉพาะตอนที่ผู้ใช้กรอกค่าที่ไม่ใช่ตัวเลขหรือติดลบ
+    let amount = null;
+    if (formAmount.trim()) {
+      const num = Number(formAmount);
+      if (Number.isNaN(num) || num < 0) {
+        setFormError('จำนวนเงินไม่ถูกต้อง');
+        return;
+      }
+      amount = num;
     }
-    const data = { name: formName.trim(), amount: Number(formAmount), type: formType };
+    const data = { name: formName.trim(), amount, type: formType };
     if (editingItem) {
       await updateItem(editingItem.id, data);
     } else {
@@ -168,7 +174,9 @@ export default function ItemsPage() {
             <div key={item.id} style={styles.itemRow}>
               <div>
                 <div style={styles.itemName}>{item.name}</div>
-                <div style={styles.itemAmount}>{formatAmount(item.amount)} บาท</div>
+                <div style={styles.itemAmount}>
+                  {item.amount != null ? `${formatAmount(item.amount)} บาท` : '— บาท'}
+                </div>
               </div>
               <div style={styles.itemActions}>
                 <button style={styles.iconBtn(false)} onClick={() => openEditForm(item)}>
@@ -216,13 +224,14 @@ export default function ItemsPage() {
           <input style={styles.input} type="text" value={formName} onChange={(e) => setFormName(e.target.value)} />
         </div>
         <div style={styles.field}>
-          <label style={styles.label}>จำนวนเงินเริ่มต้น (บาท)</label>
+          <label style={styles.label}>จำนวนเงินเริ่มต้น (บาท) (ไม่บังคับ)</label>
           <input
             style={styles.input}
             type="number"
             inputMode="decimal"
             value={formAmount}
             onChange={(e) => setFormAmount(e.target.value)}
+            placeholder="เว้นว่างได้ถ้าไม่มีจำนวนเงินตายตัว"
           />
         </div>
         <div style={styles.modalActions}>
