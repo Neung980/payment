@@ -26,14 +26,19 @@ export function setLastAutoSyncDate(dateStr) {
 
 // ส่งเฉพาะรายการที่ยังไม่ synced ไปยัง Google Apps Script Web App
 // แล้วมาร์คว่า synced=true ใน Firebase เมื่อสำเร็จ เพื่อไม่ให้ส่งซ้ำในครั้งถัดไป
-export async function syncToSheets(transactions) {
+//
+// options.allowEmpty: เมื่อไม่มีรายการใหม่ ปกติจะข้ามการเรียกเครือข่ายไปเลย
+// (ใช้ค่าเริ่มต้น false สำหรับ auto-sync ตอน 22:00 — ไม่มีอะไรใหม่ก็ไม่ต้องยิง)
+// แต่ถ้าตั้งเป็น true (ใช้กับปุ่ม sync ที่ผู้ใช้กดเอง) จะยิง POST เป็น [] แทน
+// เพื่อให้ Apps Script คำนวณและอัปเดตแถวยอดรวมใหม่ แม้ไม่มีรายการเพิ่มก็ตาม
+export async function syncToSheets(transactions, options = {}) {
   const url = getSheetsUrl();
   if (!url) {
     throw new Error('ยังไม่ได้ตั้งค่า Apps Script URL ในหน้าตั้งค่า');
   }
 
   const unsynced = (transactions || []).filter((t) => !t.synced);
-  if (unsynced.length === 0) {
+  if (unsynced.length === 0 && !options.allowEmpty) {
     return { count: 0 };
   }
 
@@ -59,8 +64,10 @@ export async function syncToSheets(transactions) {
     throw new Error(result.error || 'ซิงค์ไม่สำเร็จ');
   }
 
-  await markTransactionsSynced(unsynced.map((t) => t.id));
+  if (unsynced.length > 0) {
+    await markTransactionsSynced(unsynced.map((t) => t.id));
+  }
   localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
 
-  return { count: result.added ?? unsynced.length };
+  return { count: result.added ?? unsynced.length, refreshedOnly: unsynced.length === 0 };
 }

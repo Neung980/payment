@@ -186,11 +186,15 @@ export default function HistoryPage() {
     setSyncStatus('syncing');
     setSyncMessage('กำลังซิงค์ข้อมูล...');
     try {
-      const result = await syncToSheets(transactions);
+      // allowEmpty: true เพราะปุ่มนี้กดเอง แม้ไม่มีรายการใหม่ก็ยังยิงไปให้ Apps Script
+      // อัปเดตแถวยอดรวมล่าสุด ต่างจาก auto-sync ตอน 22:00 ที่จะข้ามไปเลยถ้าไม่มีอะไรใหม่
+      const result = await syncToSheets(transactions, { allowEmpty: true });
       setSyncStatus('success');
-      setSyncMessage(
-        result.count > 0 ? `ซิงค์สำเร็จ ${result.count} รายการ` : 'ไม่มีรายการใหม่ที่ต้องซิงค์'
-      );
+      if (result.refreshedOnly) {
+        setSyncMessage('ไม่มีรายการใหม่ — อัปเดตยอดรวมแล้ว');
+      } else {
+        setSyncMessage(`ซิงค์สำเร็จ ${result.count} รายการ`);
+      }
       setLastSyncTime(getLastSyncTime());
     } catch (err) {
       setSyncStatus('error');
