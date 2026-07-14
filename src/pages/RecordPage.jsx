@@ -79,15 +79,29 @@ const styles = {
     bottom: 90,
     left: '50%',
     transform: 'translateX(-50%)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: type === 'error' ? colors.expense : colors.income,
     color: colors.white,
-    padding: '10px 20px',
+    padding: '10px 14px 10px 20px',
     borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
     zIndex: 1200,
+    maxWidth: '90vw',
   }),
+  toastClose: {
+    background: 'none',
+    border: 'none',
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    padding: '0 4px',
+    lineHeight: 1,
+  },
   qrWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
   qrAmount: { fontSize: 24, fontWeight: 700, color: colors.text },
   qrHint: { fontSize: 13, color: colors.muted, textAlign: 'center' },
@@ -135,7 +149,9 @@ export default function RecordPage() {
   }, [type]);
 
   useEffect(() => {
-    if (!toast) return;
+    // ข้อความสำเร็จหายเองได้ แต่ข้อความ error ต้องให้ผู้ใช้กดปิดเอง
+    // เพื่อไม่ให้ความล้มเหลวในการบันทึกหลุดรอดไปโดยไม่มีใครเห็น
+    if (!toast || toast.type === 'error') return;
     const timer = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(timer);
   }, [toast]);
@@ -317,7 +333,16 @@ export default function RecordPage() {
         </div>
       </Modal>
 
-      {toast && <div style={styles.toast(toast.type)}>{toast.message}</div>}
+      {toast && (
+        <div style={styles.toast(toast.type)}>
+          <span>{toast.message}</span>
+          {toast.type === 'error' && (
+            <button style={styles.toastClose} onClick={() => setToast(null)} aria-label="ปิด">
+              ✕
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
